@@ -1,39 +1,49 @@
 import { UseCaseValidatableAdapter } from '@core/common/adapter/usecase/UseCaseValidatableAdapter';
 import { EditPostPort } from '@core/domain/post/port/usecase/EditPostPort';
 import { Exclude, Expose, plainToClass } from 'class-transformer';
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUUID } from 'class-validator';
 
 @Exclude()
 export class EditPostAdapter extends UseCaseValidatableAdapter implements EditPostPort {
-  
+
   @Expose()
   @IsUUID()
   public executorId: string;
-  
+
   @Expose()
   @IsUUID()
   public postId: string;
-  
+
   @Expose()
   @IsOptional()
   @IsString()
   public title?: string;
-  
+
   @Expose()
   @IsOptional()
   @IsUUID()
-  public imageId?: string;
-  
+  public imageId?: string; // Backward compatibility
+
+  @Expose()
+  @IsOptional()
+  @IsUUID()
+  public coverImageId?: string;
+
+  @Expose()
+  @IsOptional()
+  @IsArray()
+  @IsUUID(4, { each: true })
+  public galleryImageIds?: string[];
+
   @Expose()
   @IsOptional()
   @IsString()
   public content?: string;
-  
+
   public static async new(payload: EditPostPort): Promise<EditPostAdapter> {
     const adapter: EditPostAdapter = plainToClass(EditPostAdapter, payload);
     await adapter.validate();
-    
+
     return adapter;
   }
-  
 }

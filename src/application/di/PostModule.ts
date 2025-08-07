@@ -1,3 +1,4 @@
+// src/application/di/PostModule.ts
 import { PostController } from '@application/api/http-rest/controller/PostController';
 import { CoreDITokens } from '@core/common/di/CoreDITokens';
 import { PostDITokens } from '@core/domain/post/di/PostDITokens';
@@ -12,75 +13,109 @@ import { GetPostListService } from '@core/service/post/usecase/GetPostListServic
 import { GetPostService } from '@core/service/post/usecase/GetPostService';
 import { PublishPostService } from '@core/service/post/usecase/PublishPostService';
 import { RemovePostService } from '@core/service/post/usecase/RemovePostService';
+import {
+  AddPostMediaService,
+  RemovePostMediaService,
+  ReorderPostMediaService,
+  AddPostMediaUseCase,
+  RemovePostMediaUseCase,
+  ReorderPostMediaUseCase
+} from '@core/service/post/usecase/ManagePostMediaService';
 import { TypeOrmPostRepositoryAdapter } from '@infrastructure/adapter/persistence/typeorm/repository/post/TypeOrmPostRepositoryAdapter';
 import { NestWrapperPostImageRemovedEventHandler } from '@infrastructure/handler/post/NestWrapperPostImageRemovedEventHandler';
 import { TransactionalUseCaseWrapper } from '@infrastructure/transaction/TransactionalUseCaseWrapper';
 import { Module, Provider } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { TypeOrmPost } from '@infrastructure/adapter/persistence/typeorm/entity/post/TypeOrmPost';
 
 const persistenceProviders: Provider[] = [
   {
     provide: PostDITokens.PostRepository,
-    useFactory: (dataSource: DataSource) => new TypeOrmPostRepositoryAdapter(dataSource.getRepository(TypeOrmPost)),
+    useFactory: (dataSource: DataSource) => new TypeOrmPostRepositoryAdapter(dataSource),
     inject: [DataSource]
   }
 ];
 
 const useCaseProviders: Provider[] = [
+  // Existing use cases
   {
-    provide   : PostDITokens.CreatePostUseCase,
+    provide: PostDITokens.CreatePostUseCase,
     useFactory: (postRepository, queryBus) => {
       const service: CreatePostUseCase = new CreatePostService(postRepository, queryBus);
       return new TransactionalUseCaseWrapper(service);
     },
-    inject    : [PostDITokens.PostRepository, CoreDITokens.QueryBus]
+    inject: [PostDITokens.PostRepository, CoreDITokens.QueryBus]
   },
   {
-    provide   : PostDITokens.EditPostUseCase,
+    provide: PostDITokens.EditPostUseCase,
     useFactory: (postRepository, queryBus) => {
       const service: EditPostUseCase = new EditPostService(postRepository, queryBus);
       return new TransactionalUseCaseWrapper(service);
     },
-    inject    : [PostDITokens.PostRepository, CoreDITokens.QueryBus]
+    inject: [PostDITokens.PostRepository, CoreDITokens.QueryBus]
   },
   {
-    provide   : PostDITokens.GetPostListUseCase,
+    provide: PostDITokens.GetPostListUseCase,
     useFactory: (postRepository) => new GetPostListService(postRepository),
-    inject    : [PostDITokens.PostRepository]
+    inject: [PostDITokens.PostRepository]
   },
   {
-    provide   : PostDITokens.GetPostUseCase,
+    provide: PostDITokens.GetPostUseCase,
     useFactory: (postRepository) => new GetPostService(postRepository),
-    inject    : [PostDITokens.PostRepository]
+    inject: [PostDITokens.PostRepository]
   },
   {
-    provide   : PostDITokens.PublishPostUseCase,
+    provide: PostDITokens.PublishPostUseCase,
     useFactory: (postRepository) => {
       const service: PublishPostUseCase = new PublishPostService(postRepository);
       return new TransactionalUseCaseWrapper(service);
     },
-    inject    : [PostDITokens.PostRepository]
+    inject: [PostDITokens.PostRepository]
   },
   {
-    provide   : PostDITokens.RemovePostUseCase,
+    provide: PostDITokens.RemovePostUseCase,
     useFactory: (postRepository) => {
       const service: RemovePostUseCase = new RemovePostService(postRepository);
       return new TransactionalUseCaseWrapper(service);
     },
-    inject    : [PostDITokens.PostRepository]
+    inject: [PostDITokens.PostRepository]
   },
+
+  // New Media Management Use Cases
+  {
+    provide: PostDITokens.AddPostMediaUseCase,
+    useFactory: (postRepository, queryBus) => {
+      const service: AddPostMediaUseCase = new AddPostMediaService(postRepository, queryBus);
+      return new TransactionalUseCaseWrapper(service);
+    },
+    inject: [PostDITokens.PostRepository, CoreDITokens.QueryBus]
+  },
+  {
+    provide: PostDITokens.RemovePostMediaUseCase,
+    useFactory: (postRepository) => {
+      const service: RemovePostMediaUseCase = new RemovePostMediaService(postRepository);
+      return new TransactionalUseCaseWrapper(service);
+    },
+    inject: [PostDITokens.PostRepository]
+  },
+  {
+    provide: PostDITokens.ReorderPostMediaUseCase,
+    useFactory: (postRepository) => {
+      const service: ReorderPostMediaUseCase = new ReorderPostMediaService(postRepository);
+      return new TransactionalUseCaseWrapper(service);
+    },
+    inject: [PostDITokens.PostRepository]
+  }
 ];
 
 const handlerProviders: Provider[] = [
   {
-    provide  : NestWrapperPostImageRemovedEventHandler,
-    useClass : NestWrapperPostImageRemovedEventHandler,
+    provide: NestWrapperPostImageRemovedEventHandler,
+    useClass: NestWrapperPostImageRemovedEventHandler,
   },
   {
-    provide   : PostDITokens.PostImageRemovedEventHandler,
+    provide: PostDITokens.PostImageRemovedEventHandler,
     useFactory: (postRepository) => new HandlePostImageRemovedEventService(postRepository),
-    inject    : [PostDITokens.PostRepository]
+    inject: [PostDITokens.PostRepository]
   }
 ];
 

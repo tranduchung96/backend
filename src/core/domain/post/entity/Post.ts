@@ -1,140 +1,150 @@
-import { Entity } from '@core/common/entity/Entity';
-import { RemovableEntity } from '@core/common/entity/RemovableEntity';
+// src/core/domain/post/entity/Post.ts (Updated)
 import { PostStatus } from '@core/common/enums/PostEnums';
-import { Nullable } from '@core/common/type/CommonTypes';
+import { Entity } from '@core/common/entity/Entity';
+import { Nullable, Optional } from '@core/common/type/CommonTypes';
 import { PostImage } from '@core/domain/post/entity/PostImage';
 import { PostOwner } from '@core/domain/post/entity/PostOwner';
-import { CreatePostEntityPayload } from '@core/domain/post/entity/type/CreatePostEntityPayload';
-import { EditPostEntityPayload } from '@core/domain/post/entity/type/EditPostEntityPayload';
-import { IsDate, IsEnum, IsInstance, IsOptional, IsString } from 'class-validator';
+import { PostMediaCollection } from '@core/domain/post/entity/PostMediaCollection';
 import { v4 } from 'uuid';
 
-export class Post extends Entity<string> implements RemovableEntity {
-  
-  @IsInstance(PostOwner)
-  private readonly owner: PostOwner;
-  
-  @IsString()
-  private title: string;
-  
-  @IsOptional()
-  @IsInstance(PostImage)
-  private image: Nullable<PostImage>;
-  
-  @IsOptional()
-  @IsString()
-  private content: Nullable<string>;
-  
-  @IsOptional()
-  @IsEnum(PostStatus)
-  private status: PostStatus;
+export type CreatePostEntityPayload = {
+  owner: PostOwner;
+  title: string;
+  content?: string;
+  image?: Nullable<PostImage>; // Keep for backward compatibility
+  mediaCollection?: PostMediaCollection;
+  id?: string;
+  status?: PostStatus;
+  createdAt?: Date;
+  editedAt?: Nullable<Date>;
+  publishedAt?: Nullable<Date>;
+  removedAt?: Nullable<Date>;
+};
 
-  @IsDate()
-  private readonly createdAt: Date;
-  
-  @IsOptional()
-  @IsDate()
+export class Post extends Entity<string> {
+
+  private owner: PostOwner;
+  private title: string;
+  private content: Nullable<string>;
+  private image: Nullable<PostImage>; // Keep for backward compatibility
+  private mediaCollection: PostMediaCollection;
+  private status: PostStatus;
   private editedAt: Nullable<Date>;
-  
-  @IsOptional()
-  @IsDate()
   private publishedAt: Nullable<Date>;
-  
-  @IsOptional()
-  @IsDate()
   private removedAt: Nullable<Date>;
-  
+
   constructor(payload: CreatePostEntityPayload) {
-    super();
-  
-    this.owner       = payload.owner;
-    this.title       = payload.title;
-    this.image       = payload.image || null;
-    this.content     = payload.content || null;
-  
-    this.id          = payload.id || v4();
-    this.status      = payload.status || PostStatus.DRAFT;
-    this.createdAt   = payload.createdAt || new Date();
-    this.editedAt    = payload.editedAt || null;
+    super(payload.id || v4(), payload.createdAt);
+
+    this.owner = payload.owner;
+    this.title = payload.title;
+    this.content = payload.content || null;
+    this.image = payload.image || null;
+    this.mediaCollection = payload.mediaCollection || new PostMediaCollection();
+    this.status = payload.status || PostStatus.DRAFT;
+    this.editedAt = payload.editedAt || null;
     this.publishedAt = payload.publishedAt || null;
-    this.removedAt   = payload.removedAt || null;
+    this.removedAt = payload.removedAt || null;
   }
-  
+
   public getOwner(): PostOwner {
     return this.owner;
   }
-  
+
   public getTitle(): string {
     return this.title;
   }
-  
-  public getImage(): Nullable<PostImage> {
-    return this.image;
-  }
-  
+
   public getContent(): Nullable<string> {
     return this.content;
   }
-  
-  public getStatus(): string {
+
+  // Keep for backward compatibility
+  public getImage(): Nullable<PostImage> {
+    // If we have media collection, try to get cover image from there
+    const coverMedia = this.mediaCollection.getCover();
+    if (coverMedia && coverMedia.getMediaDetails()) {
+      const details = coverMedia.getMediaDetails()!;
+      return new PostImage(coverMedia.getMediaId(), details.relativePath);
+    }
+    return this.image;
+  }
+
+  public getMediaCollection(): PostMediaCollection {
+    return this.mediaCollection;
+  }
+
+  public getCoverImage(): PostImage | null {
+    const coverMedia = this.mediaCollection.getCover();
+    if (coverMedia && coverMedia.getMediaDetails()) {
+      const details = coverMedia.getMediaDetails()!;
+      return new PostImage(coverMedia.getMediaId(), details.relativePath);
+    }
+    return null;
+  }
+
+  public getGalleryImages(): PostImage[] {
+    return this.mediaCollection.getGallery()
+        .filter(media => media.getMediaDetails())
+        .map(media => {
+          const details = media.getMediaDetails()!;
+          return new PostImage(media.getMediaId(), details.relativePath);
+        });
+  }
+
+  public getStatus(): PostStatus {
     return this.status;
   }
-  
-  public getCreatedAt(): Date {
-    return this.createdAt;
-  }
-  
+
   public getEditedAt(): Nullable<Date> {
     return this.editedAt;
   }
-  
+
   public getPublishedAt(): Nullable<Date> {
     return this.publishedAt;
   }
-  
+
   public getRemovedAt(): Nullable<Date> {
     return this.removedAt;
   }
-  
-  public async edit(payload: EditPostEntityPayload): Promise<void> {
-    const currentDate: Date = new Date();
-  
-    if (payload.title) {
-      this.title = payload.title;
-      this.editedAt = currentDate;
-    }
-    if (typeof payload.image !== 'undefined') {
-      this.image = payload.image;
-      this.editedAt = currentDate;
-    }
-    if (typeof payload.content !== 'undefined') {
-      this.content = payload.content;
-      this.editedAt = currentDate;
-    }
-    
-    await this.validate();
+
+  public async edit(title: string, content?: string): Promise<void> {
+    this.title = title;
+    this.content = content || null;
+    this.editedAt = new Date();
   }
-  
-  public async publish(): Promise<void>  {
-    const currentDate: Date = new Date();
-    
+
+  public async publish(): Promise<void> {
     this.status = PostStatus.PUBLISHED;
-    this.editedAt = currentDate;
-    this.publishedAt = currentDate;
-  
-    await this.validate();
+    this.publishedAt = new Date();
+    this.editedAt = new Date();
   }
-  
+
   public async remove(): Promise<void> {
     this.removedAt = new Date();
-    await this.validate();
   }
-  
-  public static async new(payload: CreatePostEntityPayload): Promise<Post> {
-    const post: Post = new Post(payload);
-    await post.validate();
-    
-    return post;
+
+  public static async new(payload: {
+    owner: PostOwner;
+    title: string;
+    content?: string;
+    imageId?: string; // Keep for backward compatibility
+    mediaCollection?: PostMediaCollection;
+  }): Promise<Post> {
+    // Handle backward compatibility
+    let image: Nullable<PostImage> = null;
+    if (payload.imageId) {
+      image = new PostImage(payload.imageId, ''); // relativePath will be set by repository
+    }
+
+    return new Post({
+      owner: payload.owner,
+      title: payload.title,
+      content: payload.content,
+      image,
+      mediaCollection: payload.mediaCollection || new PostMediaCollection(),
+      status: PostStatus.DRAFT,
+      createdAt: new Date(),
+    });
   }
-  
 }
